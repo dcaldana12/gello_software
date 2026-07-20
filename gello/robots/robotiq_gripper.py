@@ -284,29 +284,68 @@ class RobotiqGripper:
         :return: A tuple with a bool indicating whether the action it was successfully sent, and an integer with
         the actual position that was requested, after being adjusted to the min/max calibrated range.
         """
-        position = int(position)
-        speed = int(speed)
-        force = int(force)
+        # position = int(position)
+        # speed = int(speed)
+        # force = int(force)
 
-        def clip_val(min_val, val, max_val):
-            return max(min_val, min(val, max_val))
+        # def clip_val(min_val, val, max_val):
+        #     return max(min_val, min(val, max_val))
 
-        clip_pos = clip_val(self._min_position, position, self._max_position)
-        clip_spe = clip_val(self._min_speed, speed, self._max_speed)
-        clip_for = clip_val(self._min_force, force, self._max_force)
+        # clip_pos = clip_val(self._min_position, position, self._max_position)
+        # clip_spe = clip_val(self._min_speed, speed, self._max_speed)
+        # clip_for = clip_val(self._min_force, force, self._max_force)
 
-        # moves to the given position with the given speed and force
-        var_dict = OrderedDict(
-            [
-                (self.POS, clip_pos),
-                (self.SPE, clip_spe),
-                (self.FOR, clip_for),
-                (self.GTO, 1),
-            ]
+        # # moves to the given position with the given speed and force
+        # var_dict = OrderedDict(
+        #     [
+        #         (self.POS, clip_pos),
+        #         (self.SPE, clip_spe),
+        #         (self.FOR, clip_for),
+        #         (self.GTO, 1),
+        #     ]
+        # )
+        # succ = self._set_vars(var_dict)
+        # time.sleep(0.008)  # need to wait (dont know why)
+        # return succ, clip_pos
+
+        # Code adapted to Polyscope 3.0
+        clip_pos = max(
+            self._min_position,
+            min(int(position), self._max_position),
         )
-        succ = self._set_vars(var_dict)
-        time.sleep(0.008)  # need to wait (dont know why)
-        return succ, clip_pos
+        clip_spe = max(
+            self._min_speed,
+            min(int(speed), self._max_speed),
+        )
+        clip_for = max(
+            self._min_force,
+            min(int(force), self._max_force),
+        )
+
+        try:
+            stop_ok = self._set_var(self.GTO, 0)
+
+            pos_ok = self._set_var(self.POS, clip_pos)
+            speed_ok = self._set_var(self.SPE, clip_spe)
+            force_ok = self._set_var(self.FOR, clip_for)
+
+            go_ok = self._set_var(self.GTO, 1)
+
+            success = all(
+                [
+                    stop_ok,
+                    pos_ok,
+                    speed_ok,
+                    force_ok,
+                    go_ok,
+                ]
+            )
+
+            return success, clip_pos
+
+        except (OSError, RuntimeError) as exc:
+            print(f"Robotiq movement command failed: {exc}")
+            return False, clip_pos
 
     def move_and_wait_for_pos(
         self, position: int, speed: int, force: int

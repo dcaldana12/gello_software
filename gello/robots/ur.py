@@ -33,6 +33,7 @@ class URRobot(Robot):
         self._free_drive = False
         self.robot.endFreedriveMode()
         self._use_gripper = not no_gripper
+        self._last_gripper_command = None
 
     def num_dofs(self) -> int:
         """Get the number of joints of the robot.
@@ -83,10 +84,42 @@ class URRobot(Robot):
         self.robot.servoJ(
             robot_joints, velocity, acceleration, dt, lookahead_time, gain
         )
+        # if self._use_gripper:
+        #     gripper_pos = joint_state[-1] * 255
+        #     self.gripper.move(gripper_pos, 255, 10)
+        # self.robot.waitPeriod(t_start)
+
+        # Handle gripper command if applicable URCap 1.2.1
         if self._use_gripper:
-            gripper_pos = joint_state[-1] * 255
-            self.gripper.move(gripper_pos, 255, 10)
-        self.robot.waitPeriod(t_start)
+            normalized_position = float(
+                np.clip(joint_state[-1], 0.0, 1.0)
+            )
+            gripper_position = int(
+                round(normalized_position * 255)
+            )
+
+            command_changed = (
+                self._last_gripper_command is None
+                or abs(
+                    gripper_position
+                    - self._last_gripper_command
+                ) >= 5
+            )
+
+            if command_changed:
+                success, requested_position = self.gripper.move(
+                    position=gripper_position,
+                    speed=255,
+                    force=255,
+                )
+
+                if success:
+                    self._last_gripper_command = requested_position
+                else:
+                    print(
+                        "Gripper command failed for position "
+                        f"{requested_position}"
+                    )
 
     def freedrive_enabled(self) -> bool:
         """Check if the robot is in freedrive mode.
